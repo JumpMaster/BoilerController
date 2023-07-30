@@ -1,23 +1,10 @@
 #include <Adafruit_NeoPixel.h>
 #include "BoilerControllerESP32.h"
 #include <ArduinoOTA.h>
-// #include <InternalStorage.h>
-// #include <InternalStorageAVR.h>
-// #include <InternalStorageESP.h>
-// #include <InternalStorageRP2.h>
-// #include <InternalStorageSTM32.h>
-// #include <OTAStorage.h>
-// #include <SDStorage.h>
-// #include <SerialFlashStorage.h>
-// #include <WiFiOTA.h>
-
+#include "HAMqttDevice.h"
 #include <WiFi.h>
-// #include <WiFiClient.h>
-// #include <WiFiServer.h>
-// #include <WiFiUdp.h>
-
+#include <WiFiGeneric.h>
 #include <PubSubClient.h>
-
 #include "PapertrailLogger.h"
 #include "secrets.h"
 
@@ -50,7 +37,7 @@ bool boilerActive = 0;
 bool relaySensorState = LOW;
 
 // const uint32_t maxBoilerRuntime = 1000 * 60; // 60 seconds
-const uint32_t maxBoilerRuntime = 1000 * 60 * 60 * 3; // 3 hours
+const uint32_t maxBoilerRuntime = 1000 * 60 * 60 * 5; // 5 hours
 uint32_t boilerAutoOffTime = 0;
 
 const int boilerActivePublishFrequency = 60000;
@@ -70,8 +57,10 @@ const uint8_t maxBrightness = 50;
 
 uint32_t nextMetricsUpdate = 0;
 
-// bool bootButtonState = HIGH;
-// bool fakeWifi = false;
+const char* deviceConfig = "{\"identifiers\":\"195212a9-76d2-4b3e-8d33-78c5f4e7689a\",\"name\":\"Boiler Controller\",\"sw_version\":\"0.1\",\"model\":\"BoilerController\",\"manufacturer\":\"JumpMaster\"}";
+HAMqttDevice mqttRelaySensor("Boiler Controller Relay Sensor", HAMqttDevice::BINARY_SENSOR, "homeassistant");
+HAMqttDevice mqttBoilerControlSwitch("Boiler Controller", HAMqttDevice::SWITCH, "homeassistant");
+
 
 // Stubs
 void mqttCallback(char* topic, byte* payload, unsigned int length);
@@ -116,7 +105,7 @@ void checkBoilerRelay()
     if (state != relaySensorState)
     {
         relaySensorState = state;
-        mqttClient.publish("home/boiler/relay-sensor", relaySensorState ? "ON" : "OFF");
+        mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
     }
 }
 
@@ -127,10 +116,20 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     memcpy(data, payload, length);
     data[length] = '\0';
 
-    if (strcmp(topic, "home/boiler/switch/set") == 0)
+    if (strcmp(topic, mqttBoilerControlSwitch.getCommandTopic().c_str()) == 0)
     {
-        setBoiler(strcmp(data, "on") == 0);
+        setBoiler(strcmp(data, "ON") == 0);
     }
+}
+
+void setupMQTT()
+{
+    mqttRelaySensor.addConfigVar("device", deviceConfig);
+    mqttBoilerControlSwitch.addConfigVar("device", deviceConfig);
+
+    mqttClient.setBufferSize(4096);
+    mqttClient.setServer(mqtt_server, 1883);
+    mqttClient.setCallback(mqttCallback);
 }
 
 void connectToMQTT()
@@ -142,17 +141,23 @@ void connectToMQTT()
     if (mqttClient.connect(deviceName, mqtt_usernme, mqtt_password))
     {
         infoLog->println("Connected to MQTT");
-        mqttClient.subscribe("home/boiler/switch/set");
+
+        mqttClient.publish(mqttBoilerControlSwitch.getConfigTopic().c_str(), mqttBoilerControlSwitch.getConfigPayload().c_str(), true);
+        mqttClient.publish(mqttRelaySensor.getConfigTopic().c_str(), mqttRelaySensor.getConfigPayload().c_str(), true);
+
+        mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+        mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+
+        mqttClient.subscribe(mqttBoilerControlSwitch.getCommandTopic().c_str());
     }
 }
 
 // TODO make wifi retry instead of within a while not connected loop
 void connectToNetwork()
 {
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
+
     WiFi.begin(ssid, password);
-    // WiFi.Scan();
-    // delay(5000);
-    // WiFi.scanNetworks();
 
     while (WiFi.status() != WL_CONNECTED)
     {
@@ -171,7 +176,7 @@ void connectToNetwork()
 
 void publishboilerActive(bool state)
 {
-    mqttClient.publish("home/boiler/switch", state ?  "ON" : "OFF");
+    mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), state ? "ON" : "OFF", true);
 }
 
 void checkDeviceConnectionState()
@@ -279,11 +284,6 @@ void setup()
     pixel.setBrightness(maxBrightness);
     pixel.show();
 
-    // delay(5000);
-    // delay(5000);
-    // WiFi.disconnect(true,true);
-    // WiFi.scanNetworks();
-
     uint8_t chipid[6];
     esp_read_mac(chipid, ESP_MAC_WIFI_STA);
     char macAddress[19];
@@ -296,8 +296,7 @@ void setup()
     ArduinoOTA.setHostname(deviceName);
     ArduinoOTA.begin();
 
-    mqttClient.setServer(mqtt_server, 1883);
-    mqttClient.setCallback(mqttCallback);
+    setupMQTT();
 }
 
 void loop()
@@ -369,24 +368,4 @@ void loop()
 
         wifiReconnectPreviousMillis = currentMillis;
     }
-/*
-    if (bootButtonState != gpio_get_level(GPIO_NUM_0))
-    {
-        bootButtonState = gpio_get_level(GPIO_NUM_0);
-        if (bootButtonState == LOW)
-        {
-            fakeWifi = !fakeWifi;
-
-            if (fakeWifi == false) 
-            {
-                connectToNetwork();
-            }
-            else
-            {
-                WiFi.begin("FAKEY", "FAKEYFAKEYFAKEFAKE");
-            }
-        }
-        infoLog->printf("Boot button is %s\n", bootButtonState ? "HIGH" : "LOW");
-    }
-*/
 }
