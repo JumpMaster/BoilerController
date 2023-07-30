@@ -1,5 +1,5 @@
 #include <Adafruit_NeoPixel.h>
-#include "BoilerControllerESP32.h"
+#include "BoilerController.h"
 #include <ArduinoOTA.h>
 #include "HAMqttDevice.h"
 #include <WiFi.h>
