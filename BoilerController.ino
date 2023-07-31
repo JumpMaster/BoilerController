@@ -57,10 +57,9 @@ const uint8_t maxBrightness = 50;
 
 uint32_t nextMetricsUpdate = 0;
 
-const char* deviceConfig = "{\"identifiers\":\"195212a9-76d2-4b3e-8d33-78c5f4e7689a\",\"name\":\"Boiler Controller\",\"sw_version\":\"0.1\",\"model\":\"BoilerController\",\"manufacturer\":\"JumpMaster\"}";
-HAMqttDevice mqttRelaySensor("Boiler Controller Relay Sensor", HAMqttDevice::BINARY_SENSOR, "homeassistant");
-HAMqttDevice mqttBoilerControlSwitch("Boiler Controller", HAMqttDevice::SWITCH, "homeassistant");
-
+const char* deviceConfig = "{\"identifiers\":\"195212a9-76d2-4b3e-8d33-78c5f4e7689a\",\"name\":\"Boiler Controller\",\"sw_version\":\"0.2\",\"model\":\"BoilerController\",\"manufacturer\":\"JumpMaster\"}";
+HAMqttDevice mqttRelaySensor("Boiler Active Sensor", HAMqttDevice::BINARY_SENSOR, "homeassistant");
+HAMqttDevice mqttBoilerControlSwitch("Boiler Active", HAMqttDevice::SWITCH, "homeassistant");
 
 // Stubs
 void mqttCallback(char* topic, byte* payload, unsigned int length);
