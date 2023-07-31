@@ -3,60 +3,6 @@
 #include "StandardFeatures.h"
 #include "BoilerController.h"
 
-const bool debugMode = false;
-
-const gpio_num_t RELAY_PIN = GPIO_NUM_9;
-const gpio_num_t RELAY_SENSOR_PIN = GPIO_NUM_17;
-
-// const gpio_num_t NEOPIXEL_PIN = GPIO_NUM_39; // INTERNAL NEOPIXEL
-// const gpio_num_t NEOPIXEL_PIN = GPIO_NUM_18; // EXTERNAL NEOPIXEL
-
-/*
-WiFiClient espClient;
-unsigned long wifiReconnectPreviousMillis = 0;
-unsigned long wifiReconnectInterval = 30000;
-
-PubSubClient mqttClient(espClient);
-unsigned long lastMqttConnectAttempt;
-const int mqttConnectAtemptTimeout = 5000;
-
-DeviceConnectionState deviceConnectionState = DEVICE_DISCONNECTED;
-Adafruit_NeoPixel pixel(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
-*/
-
-BoilerMode boilerMode = BOILER_SAFTEY_MODE;
-uint32_t safteyModeStartTime = 0;
-const uint32_t safteyBufferTime = 1000*60*10; // 10 minutes
-// const uint32_t safteyBufferTime = 1000 * 60 * 2; // 2 minutes
-bool boilerActive = 0;
-bool relaySensorState = LOW;
-
-// const uint32_t maxBoilerRuntime = 1000 * 60; // 60 seconds
-const uint32_t maxBoilerRuntime = 1000 * 60 * 60 * 5; // 5 hours
-uint32_t boilerAutoOffTime = 0;
-
-const int boilerActivePublishFrequency = 60000;
-uint32_t nextboilerActivePublish = 0;
-uint32_t nextBoilerRelayCheck = 0;
-/*
-bool lightFlashColor = false;
-bool brightnessDirection;
-uint32_t nextLightUpdate;
-
-uint32_t currentColor = 0xFF0000;
-uint32_t stateColor;
-*/
-const uint32_t pixelBoilerActiveColor = 0xFC7B03;
-/*
-uint8_t currentBrightness = 0;
-const uint8_t maxBrightness = 50;
-
-uint32_t nextMetricsUpdate = 0;
-*/
-const char* deviceConfig = "{\"identifiers\":\"195212a9-76d2-4b3e-8d33-78c5f4e7689a\",\"name\":\"Boiler Controller\",\"sw_version\":\"0.2\",\"model\":\"BoilerController\",\"manufacturer\":\"JumpMaster\"}";
-HAMqttDevice mqttRelaySensor("Boiler Active Sensor", HAMqttDevice::BINARY_SENSOR, "homeassistant");
-HAMqttDevice mqttBoilerControlSwitch("Boiler Active", HAMqttDevice::SWITCH, "homeassistant");
-
 // Stubs
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 void publishboilerActive(bool state);
@@ -65,25 +11,7 @@ uint32_t getMillis()
 {
     return esp_timer_get_time() / 1000;
 }
-/*
-void sendTelegrafMetrics()
-{
 
-    uint32_t uptime = getMillis() / 1000;
-
-    char buffer[150];
-
-    snprintf(buffer, sizeof(buffer),
-        "status,device=%s uptime=%d,resetReason=%d,firmware=\"%s\",memUsed=%ld,memTotal=%ld",
-        deviceName,
-        uptime,
-        esp_reset_reason(),
-        esp_get_idf_version(),
-        (ESP.getHeapSize()-ESP.getFreeHeap()),
-        ESP.getHeapSize());
-    mqttClient.publish("telegraf/particle", buffer);
-}
-*/
 void setBoiler(bool state)
 {
     gpio_set_level(RELAY_PIN, state);
@@ -117,59 +45,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         setBoiler(strcmp(data, "ON") == 0);
     }
 }
-/*
-void setupMQTT()
-{
-    mqttRelaySensor.addConfigVar("device", deviceConfig);
-    mqttBoilerControlSwitch.addConfigVar("device", deviceConfig);
 
-    mqttClient.setBufferSize(4096);
-    mqttClient.setServer(mqtt_server, 1883);
-    mqttClient.setCallback(mqttCallback);
-}
-
-void connectToMQTT()
-{
-    lastMqttConnectAttempt = millis();
-    if (debugMode)
-        Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (mqttClient.connect(deviceName, mqtt_usernme, mqtt_password))
-    {
-        infoLog->println("Connected to MQTT");
-
-        mqttClient.publish(mqttBoilerControlSwitch.getConfigTopic().c_str(), mqttBoilerControlSwitch.getConfigPayload().c_str(), true);
-        mqttClient.publish(mqttRelaySensor.getConfigTopic().c_str(), mqttRelaySensor.getConfigPayload().c_str(), true);
-
-        mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
-        mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
-
-        mqttClient.subscribe(mqttBoilerControlSwitch.getCommandTopic().c_str());
-    }
-}
-
-// TODO make wifi retry instead of within a while not connected loop
-void connectToNetwork()
-{
-    WiFi.setTxPower(WIFI_POWER_19_5dBm);
-
-    WiFi.begin(ssid, password);
-
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(5000);
-        if (debugMode)
-            Serial.println("Establishing connection to WiFi..");
-    }
-
-    if (WiFi.status() == WL_CONNECTED)
-        infoLog->println("Connected to WiFi");
-
-    if (debugMode)
-        Serial.println("Connected to network");
-}
-
-*/
 void publishboilerActive(bool state)
 {
     mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), state ? "ON" : "OFF", true);
@@ -178,21 +54,6 @@ void publishboilerActive(bool state)
 void checkDeviceConnectionState()
 {
     unsigned long currentMillis = getMillis();
-    /*
-    DeviceConnectionState cState;
-
-    if (mqttClient.connected())
-    {
-        cState = DEVICE_MQTT_CONNECTED;
-    }
-    else if (WiFi.status() == WL_CONNECTED) {
-        cState = DEVICE_WIFI_CONNECTED;
-    }
-    else
-    {
-        cState = DEVICE_DISCONNECTED;
-    }
-    */
 
     if (!mqttClient.connected() && boilerMode != BOILER_SAFTEY_MODE)
     {
@@ -220,14 +81,6 @@ void checkDeviceConnectionState()
         nextboilerActivePublish = currentMillis + boilerActivePublishFrequency;
     }
 
-    if (currentMillis > nextBoilerRelayCheck)
-    {
-        checkBoilerRelay();
-        nextBoilerRelayCheck = currentMillis + 1000;
-    }
-
-    //deviceConnectionState = cState;
-    
     if (boilerActive && currentMillis > boilerAutoOffTime)
     {
         setBoiler(false);
@@ -240,38 +93,6 @@ void checkDeviceConnectionState()
         Log.println("Boiler switched off due to saftey mode");
     }
 }
-/*
-void updateLed()
-{
-    if (currentBrightness <= 0)
-    {
-        brightnessDirection = 1;
-        currentColor = stateColor;
-        if (boilerActive)
-        {
-            if (!lightFlashColor)
-            {
-                currentColor = boilerActiveColor;
-            }
-            lightFlashColor = !lightFlashColor;
-        }
-        else if (lightFlashColor)
-        {
-            lightFlashColor = 0; // Reset this for next time.
-        }
-    }
-    else if (currentBrightness >= maxBrightness)
-    {
-        brightnessDirection = 0;
-    }
-    
-    currentBrightness = brightnessDirection ? currentBrightness+1 : currentBrightness-1;
-    pixel.fill(currentColor);
-    pixel.setBrightness(currentBrightness);
-    pixel.show();
-}
-*/
-
 
 void manageLocalMQTT()
 {
@@ -293,11 +114,8 @@ void setup()
 {
     gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT); // BOOT BUTTON
     
-    gpio_set_direction(GPIO_NUM_39, GPIO_MODE_OUTPUT); // ONBOARD NEOPIXEL POWER
-    gpio_set_level(GPIO_NUM_39, LOW); // LOW = OFF, HIGH = ON
-
-//    gpio_set_direction(NEOPIXEL_PIN, GPIO_MODE_OUTPUT); // LED
-//    gpio_set_level(NEOPIXEL_PIN, LOW);
+    gpio_set_direction(GPIO_NUM_38, GPIO_MODE_OUTPUT); // ONBOARD NEOPIXEL POWER
+    gpio_set_level(GPIO_NUM_38, LOW); // LOW = OFF, HIGH = ON
 
     gpio_set_direction(RELAY_PIN, GPIO_MODE_OUTPUT); // RELAY
     gpio_set_level(RELAY_PIN, LOW);
@@ -307,94 +125,15 @@ void setup()
     StandardSetup();
 
     mqttClient.setCallback(mqttCallback);
-/*
-    pixel.begin();
-    pixel.fill(0xFF0000);
-    pixel.setBrightness(maxBrightness);
-    pixel.show();
-
-    uint8_t chipid[6];
-    esp_read_mac(chipid, ESP_MAC_WIFI_STA);
-    char macAddress[19];
-    sprintf(macAddress, "%02x:%02x:%02x:%02x:%02x:%02x",chipid[0], chipid[1], chipid[2], chipid[3], chipid[4], chipid[5]);
-    infoLog = new PapertrailLogger(papertrailAddress, papertrailPort, LogLevel::Info, macAddress, deviceName);
-
-    connectToNetwork();
-
-    // ArduinoOTA.begin(WiFi.localIP(), "Arduino", "password", InternalStorage);
-    ArduinoOTA.setHostname(deviceName);
-    ArduinoOTA.begin();
-
-    setupMQTT();
-*/
 }
 
 void loop()
 {
-    
-
     StandardLoop();
 
     manageLocalMQTT();
 
     checkDeviceConnectionState();
-/*
+
     checkBoilerRelay();
-
-    ArduinoOTA.handle();
-
-    checkDeviceConnectionState();
-
-    if (currentMillis > nextLightUpdate)
-    {    
-        nextLightUpdate = millis() + (2000 / maxBrightness);
-        updateLed();
-    }
-*/
-
-/*
-    if (WiFi.status() == WL_CONNECTED)
-    {
-
-        if (mqttClient.connected())
-        {
-            mqttClient.loop();
-
-            if (currentMillis > nextMetricsUpdate)
-            {
-                sendTelegrafMetrics();
-                nextMetricsUpdate = currentMillis + 30000;
-            }
-            
-            if (currentMillis > nextboilerActivePublish)
-            {
-                publishboilerActive(boilerActive);
-                nextboilerActivePublish = currentMillis + boilerActivePublishFrequency;
-            }
-
-            if (currentMillis > nextBoilerRelayCheck)
-            {
-                checkBoilerRelay();
-                nextBoilerRelayCheck = currentMillis + 1000;
-            }
-
-        }
-        else if (millis() > (lastMqttConnectAttempt + mqttConnectAtemptTimeout))
-        {
-            connectToMQTT();
-        }
-
-    }
-    else if ((WiFi.status() != WL_CONNECTED) && (currentMillis - wifiReconnectPreviousMillis >= wifiReconnectInterval))
-    {
-        mqttClient.disconnect();
-        WiFi.disconnect();
-        WiFi.reconnect();
-
-        if (WiFi.status() == WL_CONNECTED)
-            infoLog->println("Reconnected to WiFi");
-
-        wifiReconnectPreviousMillis = currentMillis;
-    }
-*/
 }
