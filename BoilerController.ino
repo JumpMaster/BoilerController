@@ -1,12 +1,7 @@
-#include <Adafruit_NeoPixel.h>
+#define DIAGNOSTIC_PIXEL_PIN  18
+
+#include "StandardFeatures.h"
 #include "BoilerController.h"
-#include <ArduinoOTA.h>
-#include "HAMqttDevice.h"
-#include <WiFi.h>
-#include <WiFiGeneric.h>
-#include <PubSubClient.h>
-#include "PapertrailLogger.h"
-#include "secrets.h"
 
 const bool debugMode = false;
 
@@ -14,8 +9,9 @@ const gpio_num_t RELAY_PIN = GPIO_NUM_9;
 const gpio_num_t RELAY_SENSOR_PIN = GPIO_NUM_17;
 
 // const gpio_num_t NEOPIXEL_PIN = GPIO_NUM_39; // INTERNAL NEOPIXEL
-const gpio_num_t NEOPIXEL_PIN = GPIO_NUM_18; // EXTERNAL NEOPIXEL
+// const gpio_num_t NEOPIXEL_PIN = GPIO_NUM_18; // EXTERNAL NEOPIXEL
 
+/*
 WiFiClient espClient;
 unsigned long wifiReconnectPreviousMillis = 0;
 unsigned long wifiReconnectInterval = 30000;
@@ -24,11 +20,10 @@ PubSubClient mqttClient(espClient);
 unsigned long lastMqttConnectAttempt;
 const int mqttConnectAtemptTimeout = 5000;
 
-PapertrailLogger *infoLog;
-
-Adafruit_NeoPixel pixel(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
-
 DeviceConnectionState deviceConnectionState = DEVICE_DISCONNECTED;
+Adafruit_NeoPixel pixel(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+*/
+
 BoilerMode boilerMode = BOILER_SAFTEY_MODE;
 uint32_t safteyModeStartTime = 0;
 const uint32_t safteyBufferTime = 1000*60*10; // 10 minutes
@@ -43,20 +38,21 @@ uint32_t boilerAutoOffTime = 0;
 const int boilerActivePublishFrequency = 60000;
 uint32_t nextboilerActivePublish = 0;
 uint32_t nextBoilerRelayCheck = 0;
-
+/*
 bool lightFlashColor = false;
 bool brightnessDirection;
 uint32_t nextLightUpdate;
 
 uint32_t currentColor = 0xFF0000;
 uint32_t stateColor;
-const uint32_t boilerActiveColor = 0xFC7B03;
-
+*/
+const uint32_t pixelBoilerActiveColor = 0xFC7B03;
+/*
 uint8_t currentBrightness = 0;
 const uint8_t maxBrightness = 50;
 
 uint32_t nextMetricsUpdate = 0;
-
+*/
 const char* deviceConfig = "{\"identifiers\":\"195212a9-76d2-4b3e-8d33-78c5f4e7689a\",\"name\":\"Boiler Controller\",\"sw_version\":\"0.2\",\"model\":\"BoilerController\",\"manufacturer\":\"JumpMaster\"}";
 HAMqttDevice mqttRelaySensor("Boiler Active Sensor", HAMqttDevice::BINARY_SENSOR, "homeassistant");
 HAMqttDevice mqttBoilerControlSwitch("Boiler Active", HAMqttDevice::SWITCH, "homeassistant");
@@ -69,7 +65,7 @@ uint32_t getMillis()
 {
     return esp_timer_get_time() / 1000;
 }
-
+/*
 void sendTelegrafMetrics()
 {
 
@@ -87,7 +83,7 @@ void sendTelegrafMetrics()
         ESP.getHeapSize());
     mqttClient.publish("telegraf/particle", buffer);
 }
-
+*/
 void setBoiler(bool state)
 {
     gpio_set_level(RELAY_PIN, state);
@@ -95,7 +91,7 @@ void setBoiler(bool state)
     boilerActive = state;
     if (state)
         boilerAutoOffTime = getMillis() + maxBoilerRuntime;
-    infoLog->printf("Boiler switched %s\n", boilerActive ?  "on" : "off");
+    Log.printf("Boiler switched %s\n", boilerActive ?  "on" : "off");
 }
 
 void checkBoilerRelay()
@@ -105,6 +101,7 @@ void checkBoilerRelay()
     {
         relaySensorState = state;
         mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+        diagnosticPixelColor2 = relaySensorState ? pixelBoilerActiveColor : NEOPIXEL_BLACK;
     }
 }
 
@@ -120,7 +117,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         setBoiler(strcmp(data, "ON") == 0);
     }
 }
-
+/*
 void setupMQTT()
 {
     mqttRelaySensor.addConfigVar("device", deviceConfig);
@@ -172,7 +169,7 @@ void connectToNetwork()
         Serial.println("Connected to network");
 }
 
-
+*/
 void publishboilerActive(bool state)
 {
     mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), state ? "ON" : "OFF", true);
@@ -180,6 +177,8 @@ void publishboilerActive(bool state)
 
 void checkDeviceConnectionState()
 {
+    unsigned long currentMillis = getMillis();
+    /*
     DeviceConnectionState cState;
 
     if (mqttClient.connected())
@@ -193,46 +192,55 @@ void checkDeviceConnectionState()
     {
         cState = DEVICE_DISCONNECTED;
     }
+    */
 
-    if (cState != deviceConnectionState)
-    {
-        if (cState == DEVICE_DISCONNECTED)
-        {
-            stateColor = 0xFF0000; // Red
-        }
-        else if (cState == DEVICE_WIFI_CONNECTED)
-        {
-            stateColor = 0x0000FF; // Blue
-        }
-        else if (cState == DEVICE_MQTT_CONNECTED)
-        {
-            stateColor = 0x00FF00; // Green
-        }
-    }
-
-    if (cState != DEVICE_MQTT_CONNECTED && boilerMode != BOILER_SAFTEY_MODE)
+    if (!mqttClient.connected() && boilerMode != BOILER_SAFTEY_MODE)
     {
         if (boilerMode == BOILER_NORMAL)
         {
             boilerMode = BOILER_SAFTEY_MODE_PENDING;
             safteyModeStartTime = getMillis() + safteyBufferTime;
-            infoLog->println("Boiler mode set to saftey pending");
+            Log.println("Boiler mode set to saftey pending");
         }
         else if (boilerMode == BOILER_SAFTEY_MODE_PENDING && getMillis() > safteyModeStartTime)
         {
             boilerMode = BOILER_SAFTEY_MODE;
-            infoLog->println("Boiler mode set to saftey");
+            Log.println("Boiler mode set to saftey");
         }
     }
-    else if (cState == DEVICE_MQTT_CONNECTED && boilerMode != BOILER_NORMAL)
+    else if (mqttClient.connected() && boilerMode != BOILER_NORMAL)
     {
         boilerMode = BOILER_NORMAL;
-        infoLog->println("Boiler mode set to normal");
+        Log.println("Boiler mode set to normal");
     }
 
-    deviceConnectionState = cState;
-}
+    if (currentMillis > nextboilerActivePublish)
+    {
+        publishboilerActive(boilerActive);
+        nextboilerActivePublish = currentMillis + boilerActivePublishFrequency;
+    }
 
+    if (currentMillis > nextBoilerRelayCheck)
+    {
+        checkBoilerRelay();
+        nextBoilerRelayCheck = currentMillis + 1000;
+    }
+
+    //deviceConnectionState = cState;
+    
+    if (boilerActive && currentMillis > boilerAutoOffTime)
+    {
+        setBoiler(false);
+        Log.println("Boiler switched off due to exceeding max runtime");
+    }
+
+    if (boilerMode == BOILER_SAFTEY_MODE && boilerActive == true)
+    {
+        setBoiler(false);
+        Log.println("Boiler switched off due to saftey mode");
+    }
+}
+/*
 void updateLed()
 {
     if (currentBrightness <= 0)
@@ -262,6 +270,24 @@ void updateLed()
     pixel.setBrightness(currentBrightness);
     pixel.show();
 }
+*/
+
+
+void manageLocalMQTT()
+{
+    if (mqttClient.connected() && mqttReconnected)
+    {
+        mqttReconnected = false;
+
+        mqttClient.publish(mqttBoilerControlSwitch.getConfigTopic().c_str(), mqttBoilerControlSwitch.getConfigPayload().c_str(), true);
+        mqttClient.publish(mqttRelaySensor.getConfigTopic().c_str(), mqttRelaySensor.getConfigPayload().c_str(), true);
+
+        mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+        mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+
+        mqttClient.subscribe(mqttBoilerControlSwitch.getCommandTopic().c_str());
+    }
+}
 
 void setup()
 {
@@ -270,14 +296,18 @@ void setup()
     gpio_set_direction(GPIO_NUM_39, GPIO_MODE_OUTPUT); // ONBOARD NEOPIXEL POWER
     gpio_set_level(GPIO_NUM_39, LOW); // LOW = OFF, HIGH = ON
 
-    gpio_set_direction(NEOPIXEL_PIN, GPIO_MODE_OUTPUT); // LED
-    gpio_set_level(NEOPIXEL_PIN, LOW);
+//    gpio_set_direction(NEOPIXEL_PIN, GPIO_MODE_OUTPUT); // LED
+//    gpio_set_level(NEOPIXEL_PIN, LOW);
 
     gpio_set_direction(RELAY_PIN, GPIO_MODE_OUTPUT); // RELAY
     gpio_set_level(RELAY_PIN, LOW);
 
     gpio_set_direction(RELAY_SENSOR_PIN, GPIO_MODE_INPUT); // RELAY SENSOR
 
+    StandardSetup();
+
+    mqttClient.setCallback(mqttCallback);
+/*
     pixel.begin();
     pixel.fill(0xFF0000);
     pixel.setBrightness(maxBrightness);
@@ -296,11 +326,20 @@ void setup()
     ArduinoOTA.begin();
 
     setupMQTT();
+*/
 }
 
 void loop()
 {
-    unsigned long currentMillis = getMillis();
+    
+
+    StandardLoop();
+
+    manageLocalMQTT();
+
+    checkDeviceConnectionState();
+/*
+    checkBoilerRelay();
 
     ArduinoOTA.handle();
 
@@ -311,19 +350,9 @@ void loop()
         nextLightUpdate = millis() + (2000 / maxBrightness);
         updateLed();
     }
+*/
 
-    if (boilerActive && currentMillis > boilerAutoOffTime)
-    {
-        setBoiler(false);
-        infoLog->println("Boiler switched off due to exceeding max runtime");
-    }
-
-    if (boilerMode == BOILER_SAFTEY_MODE && boilerActive == true)
-    {
-        setBoiler(false);
-        infoLog->println("Boiler switched off due to saftey mode");
-    }
-
+/*
     if (WiFi.status() == WL_CONNECTED)
     {
 
@@ -367,4 +396,5 @@ void loop()
 
         wifiReconnectPreviousMillis = currentMillis;
     }
+*/
 }
