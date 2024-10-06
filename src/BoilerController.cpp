@@ -7,24 +7,19 @@
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 void publishboilerActive(bool state);
 
-uint32_t getMillis()
-{
-    return esp_timer_get_time() / 1000;
-}
-
 void setBoiler(bool state)
 {
-    gpio_set_level(RELAY_PIN, state);
+    digitalWrite(RELAY_PIN, state);
     publishboilerActive(state);
     boilerActive = state;
     if (state)
-        boilerAutoOffTime = getMillis() + maxBoilerRuntime;
+        boilerAutoOffTime = millis() + maxBoilerRuntime;
     Log.printf("Boiler switched %s\n", boilerActive ?  "on" : "off");
 }
 
 void checkBoilerRelay()
 {
-    bool state = gpio_get_level(RELAY_SENSOR_PIN);
+    bool state = digitalRead(RELAY_SENSOR_PIN);
     if (state != relaySensorState)
     {
         relaySensorState = state;
@@ -53,17 +48,17 @@ void publishboilerActive(bool state)
 
 void checkDeviceConnectionState()
 {
-    unsigned long currentMillis = getMillis();
+    unsigned long currentMillis = millis();
 
     if (!mqttClient.connected() && boilerMode != BOILER_SAFTEY_MODE)
     {
         if (boilerMode == BOILER_NORMAL)
         {
             boilerMode = BOILER_SAFTEY_MODE_PENDING;
-            safteyModeStartTime = getMillis() + safteyBufferTime;
+            safteyModeStartTime = millis() + safteyBufferTime;
             Log.println("Boiler mode set to saftey pending");
         }
-        else if (boilerMode == BOILER_SAFTEY_MODE_PENDING && getMillis() > safteyModeStartTime)
+        else if (boilerMode == BOILER_SAFTEY_MODE_PENDING && millis() > safteyModeStartTime)
         {
             boilerMode = BOILER_SAFTEY_MODE;
             Log.println("Boiler mode set to saftey");
@@ -112,15 +107,15 @@ void manageLocalMQTT()
 
 void setup()
 {
-    gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT); // BOOT BUTTON
+    pinMode(GPIO_NUM_0, INPUT); // BOOT BUTTON
     
-    gpio_set_direction(GPIO_NUM_38, GPIO_MODE_OUTPUT); // ONBOARD NEOPIXEL POWER
-    gpio_set_level(GPIO_NUM_38, LOW); // LOW = OFF, HIGH = ON
+    pinMode(GPIO_NUM_38, OUTPUT); // ONBOARD NEOPIXEL POWER
+    digitalWrite(GPIO_NUM_38, LOW); // LOW = OFF, HIGH = ON
 
-    gpio_set_direction(RELAY_PIN, GPIO_MODE_OUTPUT); // RELAY
-    gpio_set_level(RELAY_PIN, LOW);
+    pinMode(RELAY_PIN, OUTPUT); // RELAY
+    digitalWrite(RELAY_PIN, LOW);
 
-    gpio_set_direction(RELAY_SENSOR_PIN, GPIO_MODE_INPUT); // RELAY SENSOR
+    pinMode(RELAY_SENSOR_PIN, INPUT); // RELAY SENSOR
 
     StandardSetup();
 
