@@ -35,7 +35,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     memcpy(data, payload, length);
     data[length] = '\0';
 
-    if (strcmp(topic, mqttBoilerControlSwitch.getCommandTopic().c_str()) == 0)
+    if (strcmp(rebootMQTTButton.getCommandTopic().c_str(), topic) == 0) // Restart Topic
+    {
+        ESP.restart();
+    }
+    else if (strcmp(topic, mqttBoilerControlSwitch.getCommandTopic().c_str()) == 0)
     {
         setBoiler(strcmp(data, "ON") == 0);
     }
@@ -95,6 +99,9 @@ void manageLocalMQTT()
     {
         mqttReconnected = false;
 
+        mqttClient.publish(rebootMQTTButton.getConfigTopic().c_str(), rebootMQTTButton.getConfigPayload().c_str(), true);
+        mqttClient.subscribe(rebootMQTTButton.getCommandTopic().c_str());
+
         mqttClient.publish(mqttBoilerControlSwitch.getConfigTopic().c_str(), mqttBoilerControlSwitch.getConfigPayload().c_str(), true);
         mqttClient.publish(mqttRelaySensor.getConfigTopic().c_str(), mqttRelaySensor.getConfigPayload().c_str(), true);
 
@@ -118,6 +125,10 @@ void setup()
     pinMode(RELAY_SENSOR_PIN, INPUT); // RELAY SENSOR
 
     StandardSetup();
+
+    mqttRelaySensor.addConfigVar("device", deviceConfig);
+    mqttBoilerControlSwitch.addConfigVar("device", deviceConfig);
+    rebootMQTTButton.addConfigVar("device", deviceConfig);
 
     mqttClient.setCallback(mqttCallback);
 }

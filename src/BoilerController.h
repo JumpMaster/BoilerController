@@ -29,8 +29,9 @@ uint32_t nextboilerActivePublish = 0;
 
 const uint32_t pixelBoilerActiveColor = 0xFC7B03;
 
-const char* deviceConfig = "{\"identifiers\":\"195212a9-76d2-4b3e-8d33-78c5f4e7689a\",\"name\":\"Boiler Controller\",\"sw_version\":\"0.2\",\"model\":\"BoilerController\",\"manufacturer\":\"JumpMaster\"}";
-HAMqttDevice mqttRelaySensor("Boiler Active Sensor", HAMqttDevice::BINARY_SENSOR, "homeassistant");
-HAMqttDevice mqttBoilerControlSwitch("Boiler Active", HAMqttDevice::SWITCH, "homeassistant");
+const char* deviceConfig = "{\"identifiers\":\"195212a9-76d2-4b3e-8d33-78c5f4e7689a\",\"name\":\"Boiler Controller\",\"sw_version\":\"2024.11.1\",\"model\":\"BoilerController\",\"manufacturer\":\"JumpMaster\"}";
+HAMqttDevice mqttRelaySensor("Boiler Active Sensor", HAMqttDevice::BINARY_SENSOR);
+HAMqttDevice mqttBoilerControlSwitch("Boiler Active", HAMqttDevice::SWITCH);
+HAMqttDevice rebootMQTTButton("Boiler Controller Reboot", HAMqttDevice::BUTTON);
 
 #endif // BOILERCONTROLLER_H

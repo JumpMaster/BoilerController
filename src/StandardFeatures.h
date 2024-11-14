@@ -107,7 +107,8 @@ void mqttConnect()
 void setupOTA()
 {
     ArduinoOTA.setHostname(deviceName);
-  
+    ArduinoOTA.setPassword(otaPassword);
+
     ArduinoOTA.onStart([]()
     {
         Log.println("OTA Start");
