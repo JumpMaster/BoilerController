@@ -27,10 +27,13 @@ public:
 private:
     // Device proprieties
     const String _name;
+    const String _unique_id;
     const DeviceType _type;
+    const String haMQTTPrefix = "homeassistant";
 
     String _identifier;
     String _topic;
+    String _parent_identifier;
 
     // Config variables handling
     struct ConfigVar
@@ -51,14 +54,16 @@ private:
 public:
     HAMqttDevice(
         const String &name,
-        const DeviceType type,
-        const String &haMQTTPrefix = "homeassistant");
+        const String &unique_id,
+        const DeviceType type);
 
     ~HAMqttDevice();
 
     HAMqttDevice &enableCommandTopic();
     HAMqttDevice &enableStateTopic();
     HAMqttDevice &enableAttributesTopic();
+    HAMqttDevice &UpdateTopic();
+    HAMqttDevice &SetParentDeviceIdentifier(const String &parent_identifier);
 
     HAMqttDevice &addConfigVar(const String &key, const String &value);
     HAMqttDevice &addAttribute(const String &key, const String &value);
@@ -66,6 +71,7 @@ public:
 
     const String getConfigPayload() const;
     const String getAttributesPayload() const;
+    const String getDeviceConfigPayload() const;
 
     inline const String getTopic() const { return _topic; }
     inline const String getStateTopic() const { return _topic + "/state"; }
@@ -75,6 +81,37 @@ public:
 
 private:
     static String deviceTypeToStr(DeviceType type);
+};
+
+
+class HAMqttParent
+{
+private:
+    // Device proprieties
+    const String _device_name;
+    const String _device_unique_id;
+    const String _device_hardware;
+    const String _device_manufacturer;
+    const String _device_version;
+    const String haMQTTPrefix = "homeassistant";
+
+    String _device_identifier;
+    String _device_topic;
+    std::vector<HAMqttDevice *> haMqttDevices;
+
+public:
+    HAMqttParent(
+        const String &name,
+        const String &unique_id,
+        const String &manufacturer,
+        const String &hardware,
+        const String &version);
+
+    ~HAMqttParent();
+
+    void addHAMqttDevice(HAMqttDevice *childDevice);
+    const String getConfigPayload() const;
+    inline const String getConfigTopic() const { return _device_topic + "/config"; }
 };
 
 #endif

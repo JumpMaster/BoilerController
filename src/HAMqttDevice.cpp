@@ -2,9 +2,10 @@
 
 HAMqttDevice::HAMqttDevice(
     const String &name,
-    const DeviceType type,
-    const String &haMQTTPrefix) : _name(name),
-                                  _type(type)
+    const String &unique_id,
+    const DeviceType type) : _name(name),
+                             _unique_id(unique_id),
+                             _type(type)
 {
     // Id = name to lower case replacing spaces by underscore (ex: name="Kitchen Light" -> id="kitchen_light")
     _identifier = name;
@@ -12,12 +13,12 @@ HAMqttDevice::HAMqttDevice(
     _identifier.toLowerCase();
 
     // Define the MQTT topic of the device
-    _topic = haMQTTPrefix + '/' + deviceTypeToStr(_type) + '/' + _identifier;
+    UpdateTopic();
 
     // Preconfigure mandatory config vars that we already know
     addConfigVar("~", _topic);
     addConfigVar("name", _name);
-    addConfigVar("unique_id", _identifier);
+    addConfigVar("unique_id", unique_id);
 
     // When the command topic is mandatory, enable it.
     switch (type)
@@ -26,6 +27,7 @@ HAMqttDevice::HAMqttDevice(
     case DeviceType::FAN:
     case DeviceType::LIGHT:
     case DeviceType::LOCK:
+    case DeviceType::COVER:
     case DeviceType::NUMBER:
     case DeviceType::SWITCH:
     case DeviceType::BUTTON:
@@ -42,6 +44,7 @@ HAMqttDevice::HAMqttDevice(
     case DeviceType::FAN:
     case DeviceType::LIGHT:
     case DeviceType::LOCK:
+    case DeviceType::COVER:
     case DeviceType::NUMBER:
     case DeviceType::SENSOR:
     case DeviceType::SWITCH:
@@ -52,6 +55,36 @@ HAMqttDevice::HAMqttDevice(
 }
 
 HAMqttDevice::~HAMqttDevice() {}
+
+HAMqttDevice &HAMqttDevice::UpdateTopic()
+{
+    _topic = haMQTTPrefix + '/' + deviceTypeToStr(_type) + '/';
+    
+    if (_parent_identifier.length() > 0)
+    {
+        _topic.concat(_parent_identifier + '/');
+    }
+    
+    _topic.concat(_identifier);
+
+    for (uint8_t i = 0; i < _configVars.size(); i++)
+    {
+        if (_configVars[i].key[0] == '~')
+        {
+            _configVars[i].value = _topic;
+            break;
+        }
+    }
+
+    return *this;
+}
+
+HAMqttDevice &HAMqttDevice::SetParentDeviceIdentifier(const String &parent_identifier)
+{
+    _parent_identifier = parent_identifier;
+    UpdateTopic();
+    return *this;
+}
 
 HAMqttDevice &HAMqttDevice::enableCommandTopic()
 {
@@ -116,6 +149,37 @@ const String HAMqttDevice::getConfigPayload() const
     return configPayload;
 }
 
+const String HAMqttDevice::getDeviceConfigPayload() const
+{
+    String deviceConfigPayload;
+
+    deviceConfigPayload.concat("\"" + _identifier + "\":{\"p\":\"");
+    deviceConfigPayload.concat(deviceTypeToStr(_type));
+    deviceConfigPayload.concat("\",");
+
+    for (uint8_t i = 0; i < _configVars.size(); i++)
+    {
+        if (i != 0)
+            deviceConfigPayload.concat(',');
+
+        deviceConfigPayload.concat('"');
+        deviceConfigPayload.concat(_configVars[i].key);
+        deviceConfigPayload.concat("\":");
+
+        bool valueIsDictionnary = _configVars[i].value[0] == '{' || _configVars[i].value[0] == '[';
+
+        if (!valueIsDictionnary)
+            deviceConfigPayload.concat('"');
+
+        deviceConfigPayload.concat(_configVars[i].value);
+
+        if (!valueIsDictionnary)
+            deviceConfigPayload.concat('"');
+    }
+    deviceConfigPayload.concat("}");
+    return deviceConfigPayload;
+}
+
 const String HAMqttDevice::getAttributesPayload() const
 {
     String attrPayload = "{";
@@ -166,4 +230,64 @@ String HAMqttDevice::deviceTypeToStr(DeviceType type)
     default:
         return "[Unknown DeviceType]";
     }
+}
+
+
+HAMqttParent::HAMqttParent(
+    const String &name,
+    const String &unique_id,
+    const String &manufacturer,
+    const String &hardware,
+    const String &version) : _device_name(name),
+                             _device_unique_id(unique_id),
+                             _device_manufacturer(manufacturer),
+                             _device_hardware(hardware),
+                             _device_version(version)
+{
+    _device_identifier = _device_name;
+    _device_identifier.replace(' ', '_');
+    _device_identifier.toLowerCase();
+
+    _device_topic = haMQTTPrefix + "/device/" + _device_identifier;
+
+}
+
+HAMqttParent::~HAMqttParent() {}
+
+void HAMqttParent::addHAMqttDevice(HAMqttDevice *childDevice)
+{   
+    haMqttDevices.push_back(childDevice);
+    
+    childDevice->SetParentDeviceIdentifier(_device_identifier);
+}
+
+const String HAMqttParent::getConfigPayload() const
+{
+    String parentDeviceConfig = "{\"dev\":{\"ids\":\"";
+    parentDeviceConfig.concat(_device_unique_id);
+    parentDeviceConfig.concat("\",\"name\":\"");
+    parentDeviceConfig.concat(_device_name);
+    parentDeviceConfig.concat("\",\"mf\":\"");
+    parentDeviceConfig.concat(_device_manufacturer);
+    parentDeviceConfig.concat("\",\"mdl\":\"");
+    parentDeviceConfig.concat(_device_name);
+    parentDeviceConfig.concat("\",\"sw\":\"");
+    parentDeviceConfig.concat(_device_version);
+    parentDeviceConfig.concat("\",\"hw\":\"");
+    parentDeviceConfig.concat(_device_hardware);
+    parentDeviceConfig.concat("\"},\"o\":{\"name\":\"");
+    parentDeviceConfig.concat("HAMqttParent");
+    parentDeviceConfig.concat("\"},\"cmps\":{");
+
+    for (uint8_t i = 0; i < haMqttDevices.size(); i++)
+    {
+        if (i != 0)
+            parentDeviceConfig.concat(",");
+
+        parentDeviceConfig.concat(haMqttDevices[i]->getDeviceConfigPayload());
+    }
+
+    parentDeviceConfig.concat("}}");
+
+    return parentDeviceConfig;
 }

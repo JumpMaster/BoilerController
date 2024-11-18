@@ -30,12 +30,11 @@ void checkBoilerRelay()
 
 void mqttCallback(char* topic, byte* payload, unsigned int length)
 {
-
     char data[length + 1];
     memcpy(data, payload, length);
     data[length] = '\0';
 
-    if (strcmp(rebootMQTTButton.getCommandTopic().c_str(), topic) == 0) // Restart Topic
+    if (strcmp(mqttRebootButton.getCommandTopic().c_str(), topic) == 0) // Restart Topic
     {
         ESP.restart();
     }
@@ -99,15 +98,12 @@ void manageLocalMQTT()
     {
         mqttReconnected = false;
 
-        mqttClient.publish(rebootMQTTButton.getConfigTopic().c_str(), rebootMQTTButton.getConfigPayload().c_str(), true);
-        mqttClient.subscribe(rebootMQTTButton.getCommandTopic().c_str());
-
-        mqttClient.publish(mqttBoilerControlSwitch.getConfigTopic().c_str(), mqttBoilerControlSwitch.getConfigPayload().c_str(), true);
-        mqttClient.publish(mqttRelaySensor.getConfigTopic().c_str(), mqttRelaySensor.getConfigPayload().c_str(), true);
+        mqttClient.publish(parentMQTTDevice.getConfigTopic().c_str(), parentMQTTDevice.getConfigPayload().c_str(), true);
 
         mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
         mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
 
+        mqttClient.subscribe(mqttRebootButton.getCommandTopic().c_str());
         mqttClient.subscribe(mqttBoilerControlSwitch.getCommandTopic().c_str());
     }
 }
@@ -126,9 +122,9 @@ void setup()
 
     StandardSetup();
 
-    mqttRelaySensor.addConfigVar("device", deviceConfig);
-    mqttBoilerControlSwitch.addConfigVar("device", deviceConfig);
-    rebootMQTTButton.addConfigVar("device", deviceConfig);
+    parentMQTTDevice.addHAMqttDevice(&mqttRelaySensor);
+    parentMQTTDevice.addHAMqttDevice(&mqttBoilerControlSwitch);
+    parentMQTTDevice.addHAMqttDevice(&mqttRebootButton);
 
     mqttClient.setCallback(mqttCallback);
 }

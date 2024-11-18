@@ -10,6 +10,7 @@ build/
 
 # PlatformIO
 .pio
+upload_params.ini
 
 # Particle Compiled Firmware
 target/ 
