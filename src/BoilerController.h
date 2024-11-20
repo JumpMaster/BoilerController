@@ -2,6 +2,7 @@
 #ifndef BOILERCONTROLLER_H
 #define BOILERCONTROLLER_H
 
+#include "StandardFeatures.h"
 #include "HAMqttDevice.h"
 
 typedef enum
@@ -29,11 +30,11 @@ uint32_t nextboilerActivePublish = 0;
 
 const uint32_t pixelBoilerActiveColor = 0xFC7B03;
 
-const char device_name[] = "Boiler Controller";
-const char device_id[] = "a6d8602c-3231-47d3-a6f0-32df9d3a87b9";
-const char device_manufacturer[] = "Kevin Electronics";
-const char device_hardware[] = "QT Py ESP32-S2";
-const char device_version[] = "2024.11.1";
+const char *device_name = "Boiler Controller";
+const char *device_id = "a6d8602c-3231-47d3-a6f0-32df9d3a87b9";
+const char *device_manufacturer = "Kevin Electronics";
+const char *device_hardware = "QT Py ESP32-S2";
+const char *device_version = appVersion;
 
 HAMqttParent parentMQTTDevice(device_name,
                               device_id,

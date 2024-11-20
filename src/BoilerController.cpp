@@ -1,6 +1,5 @@
 #define DIAGNOSTIC_PIXEL_PIN  18
 
-#include "StandardFeatures.h"
 #include "BoilerController.h"
 
 // Stubs
