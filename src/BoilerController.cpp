@@ -1,4 +1,4 @@
-#define DIAGNOSTIC_PIXEL_PIN  18
+#define DIAGNOSTIC_PIXEL
 
 #include "BoilerController.h"
 
@@ -22,8 +22,12 @@ void checkBoilerRelay()
     if (state != relaySensorState)
     {
         relaySensorState = state;
-        mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
-        diagnosticPixelColor2 = relaySensorState ? pixelBoilerActiveColor : NEOPIXEL_BLACK;
+        standardFeatures.mqttPublish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+        
+        if (relaySensorState)
+            standardFeatures.setDiagnosticPixelColor(pixelBoilerActiveColor);
+        else
+            standardFeatures.setDiagnosticPixelColor(StandardFeatures::NEOPIXEL_BLACK);
     }
 }
 
@@ -45,14 +49,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
 void publishboilerActive(bool state)
 {
-    mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), state ? "ON" : "OFF", true);
+    standardFeatures.mqttPublish(mqttBoilerControlSwitch.getStateTopic().c_str(), state ? "ON" : "OFF", true);
 }
 
 void checkDeviceConnectionState()
 {
     unsigned long currentMillis = millis();
 
-    if (!mqttClient.connected() && boilerMode != BOILER_SAFTEY_MODE)
+    if (!standardFeatures.isMQTTConnected() && boilerMode != BOILER_SAFTEY_MODE)
     {
         if (boilerMode == BOILER_NORMAL)
         {
@@ -66,7 +70,7 @@ void checkDeviceConnectionState()
             Log.println("Boiler mode set to saftey");
         }
     }
-    else if (mqttClient.connected() && boilerMode != BOILER_NORMAL)
+    else if (standardFeatures.isMQTTConnected() && boilerMode != BOILER_NORMAL)
     {
         boilerMode = BOILER_NORMAL;
         Log.println("Boiler mode set to normal");
@@ -91,20 +95,25 @@ void checkDeviceConnectionState()
     }
 }
 
-void manageLocalMQTT()
+void onMQTTConnect()
 {
-    if (mqttClient.connected() && mqttReconnected)
-    {
-        mqttReconnected = false;
+    standardFeatures.mqttPublish(parentMQTTDevice.getConfigTopic().c_str(), parentMQTTDevice.getConfigPayload().c_str(), true);
 
-        mqttClient.publish(parentMQTTDevice.getConfigTopic().c_str(), parentMQTTDevice.getConfigPayload().c_str(), true);
+    standardFeatures.mqttPublish(mqttBoilerControlSwitch.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+    standardFeatures.mqttPublish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
 
-        mqttClient.publish(mqttBoilerControlSwitch.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
-        mqttClient.publish(mqttRelaySensor.getStateTopic().c_str(), relaySensorState ? "ON" : "OFF", true);
+    standardFeatures.mqttSubscribe(mqttRebootButton.getCommandTopic().c_str());
+    standardFeatures.mqttSubscribe(mqttBoilerControlSwitch.getCommandTopic().c_str());
+}
 
-        mqttClient.subscribe(mqttRebootButton.getCommandTopic().c_str());
-        mqttClient.subscribe(mqttBoilerControlSwitch.getCommandTopic().c_str());
-    }
+void setupLocalMQTT()
+{
+    parentMQTTDevice.addHAMqttDevice(&mqttRelaySensor);
+    parentMQTTDevice.addHAMqttDevice(&mqttBoilerControlSwitch);
+    parentMQTTDevice.addHAMqttDevice(&mqttRebootButton);
+
+    standardFeatures.setMqttCallback(mqttCallback);
+    standardFeatures.setMqttOnConnectCallback(onMQTTConnect);
 }
 
 void setup()
@@ -119,20 +128,22 @@ void setup()
 
     pinMode(RELAY_SENSOR_PIN, INPUT); // RELAY SENSOR
 
-    StandardSetup();
+    standardFeatures.enableLogging(deviceName, syslogServer, syslogPort);
+    standardFeatures.enableDiagnosticPixel(18);
+    standardFeatures.enableWiFi(wifiSSID, wifiPassword, deviceName);
+    standardFeatures.enableOTA(deviceName, otaPassword);
+    standardFeatures.enableSafeMode(appVersion);
+    standardFeatures.enableMQTT(mqttServer, mqttUsername, mqttPassword, deviceName);
 
-    parentMQTTDevice.addHAMqttDevice(&mqttRelaySensor);
-    parentMQTTDevice.addHAMqttDevice(&mqttBoilerControlSwitch);
-    parentMQTTDevice.addHAMqttDevice(&mqttRebootButton);
-
-    mqttClient.setCallback(mqttCallback);
+    setupLocalMQTT();
 }
 
 void loop()
 {
-    StandardLoop();
+    standardFeatures.loop();
 
-    manageLocalMQTT();
+    if (standardFeatures.isOTARunning())
+        return;
 
     checkDeviceConnectionState();
 

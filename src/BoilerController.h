@@ -3,6 +3,7 @@
 #define BOILERCONTROLLER_H
 
 #include "StandardFeatures.h"
+#include "secrets.h"
 #include "HAMqttDevice.h"
 
 typedef enum
@@ -11,6 +12,8 @@ typedef enum
     BOILER_SAFTEY_MODE_PENDING = 1,
     BOILER_SAFTEY_MODE = 2
 } BoilerMode;
+
+StandardFeatures standardFeatures;
 
 const gpio_num_t RELAY_PIN = GPIO_NUM_9;
 const gpio_num_t RELAY_SENSOR_PIN = GPIO_NUM_17;
